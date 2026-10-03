@@ -113,9 +113,8 @@ UnwrapMode: TypeAlias = Literal[
     "unwrap",  # always unwrap
 ]
 
-Selectable: TypeAlias = (
-    "Select[tuple[Any, ...]] | TextClause | FromStatement[tuple[Any, ...]] | CompoundSelect[tuple[Any, ...]]"
-)
+# SQLAlchemy 2.0 uses a single tuple type parameter; 2.1 uses variadic column types.
+Selectable: TypeAlias = "Select | TextClause | FromStatement | CompoundSelect"
 SelectableOrQuery: TypeAlias = "Selectable | Query[Any]"
 
 BindParams: TypeAlias = "Mapping[str, Any]"

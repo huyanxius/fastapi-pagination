@@ -23,4 +23,4 @@ repos:
         language: python
         name: ty
         pass_filenames: false
-        entry: uv run ty check fastapi_pagination --error-on-warning
+        entry: uv run ty check fastapi_pagination tests/typing --error-on-warning
