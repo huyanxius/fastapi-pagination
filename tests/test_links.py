@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from fastapi_pagination import add_pagination, paginate, pagination_ctx
-from fastapi_pagination.customization import CustomizedPage
+from fastapi_pagination.customization import CustomizedPage, UseIncludeTotal, UseOptionalParams
 from fastapi_pagination.links import LimitOffsetPage, Page, UseHeaderLinks, UseLimitOffsetHeaderLinks
 
 app = FastAPI()
@@ -324,3 +324,62 @@ def test_revalidation_limit_offset():
             },
         },
     }
+
+
+@pytest.mark.parametrize("header_links", [False, True], ids=["body", "header"])
+@pytest.mark.parametrize("include_total", [False, True], ids=["without-total", "with-total"])
+@pytest.mark.parametrize(
+    ("query", "prev_offset", "next_offset", "last_offset"),
+    [
+        ("limit=2", None, 2, 2),
+        ("limit=2&offset=2", 0, 4, 2),
+        ("limit=2&offset=4", 2, 6, 2),
+        ("", None, None, 0),
+        ("offset=2", None, None, 0),
+        ("offset=4", None, None, 0),
+    ],
+    ids=["first", "partial", "empty", "unlimited", "unlimited-offset", "unlimited-empty"],
+)
+def test_limit_offset_links_with_optional_total_and_params(
+    header_links, include_total, query, prev_offset, next_offset, last_offset
+):
+    page_cls = CustomizedPage[
+        PageLimitOffsetHeaderLinks[int] if header_links else LimitOffsetPage[int],
+        UseIncludeTotal(include_total),
+    ]
+    if "limit=" not in query:
+        page_cls = CustomizedPage[page_cls, UseOptionalParams()]
+    local_app = FastAPI()
+
+    @local_app.get("/items", response_model=page_cls)
+    async def route():
+        return paginate([0, 1, 2])
+
+    add_pagination(local_app)
+    local_client = TestClient(local_app)
+    url = f"/items?{query}&filter=kept" if query else "/items?filter=kept"
+    response = local_client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["total"] == (3 if include_total else None)
+    if include_total and next_offset is not None and next_offset >= 3:
+        next_offset = None
+
+    def link(offset):
+        if offset is None:
+            return None
+        prefix = "/items?limit=2&filter=kept" if "limit=" in query else "/items?filter=kept"
+        return f"{prefix}&offset={offset}"
+
+    expected_links = {
+        "self": url,
+        "first": link(0),
+        "last": link(last_offset) if include_total else None,
+        "next": link(next_offset),
+        "prev": link(prev_offset),
+    }
+    assert response.json()["links"] == expected_links
+    if header_links:
+        assert {rel: value["url"] for rel, value in response.links.items()} == {
+            rel: value for rel, value in expected_links.items() if rel != "self" and value is not None
+        }

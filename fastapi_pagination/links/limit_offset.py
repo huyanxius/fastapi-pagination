@@ -8,8 +8,7 @@ __all__ = [
 ]
 
 from abc import ABC
-from math import floor, inf
-from typing import Any, TypeAlias, cast
+from typing import Any, TypeAlias
 
 from typing_extensions import TypeVar
 
@@ -26,26 +25,22 @@ def resolve_limit_offset_links(_page: BasePage, /) -> Links:
 
     if offset is None:
         offset = 0
-    if limit is None:
-        limit = cast(int, inf)
-    if total is None:
-        total = cast(int, inf)
+    last = None
+    if total is not None:
+        last_offset = 0
+        if limit is not None:
+            # Preserve the current offset sequence for nonaligned offsets.
+            start_offset = offset % limit
+            last_offset = start_offset + (total - start_offset - 1) // limit * limit
 
-    # FIXME: it should not be so hard to calculate last page for limit-offset based pages
-    start_offset = offset % limit
-    last = start_offset + floor((total - start_offset) / limit) * limit
-
-    if last == total:
-        last = total - limit
-
-    # Fall back to the first page when this offset sequence has no valid page.
-    last = max(0, last)
+        # Fall back to the first page when this offset sequence has no valid page.
+        last = {"offset": max(0, last_offset)}
 
     return create_links(
         first={"offset": 0},
-        last={"offset": last},
-        next={"offset": offset + limit} if offset + limit < total else None,
-        prev={"offset": offset - limit} if offset - limit >= 0 else None,
+        last=last,
+        next={"offset": offset + limit} if limit is not None and (total is None or offset + limit < total) else None,
+        prev={"offset": offset - limit} if limit is not None and offset - limit >= 0 else None,
     )
 
 

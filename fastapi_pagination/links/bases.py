@@ -61,7 +61,7 @@ def _update_path(
 
 def create_links(
     first: Mapping[str, Any],
-    last: Mapping[str, Any],
+    last: Mapping[str, Any] | None,
     next: Mapping[str, Any] | None,  # noqa: A002
     prev: Mapping[str, Any] | None,
     *,
